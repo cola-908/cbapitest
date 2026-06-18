@@ -1,0 +1,25 @@
+[project]
+name = "cb-api-test"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "pytest>=8.0",
+    "requests>=2.31",
+    "pyyaml>=6.0",
+    "allure-pytest>=2.13",
+    "pytest-xdist>=3.5",
+    "jsonschema>=4.21",
+    "python-dotenv>=1.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["testcases"]
+addopts = "-v --alluredir=reports/allure-results"
+markers = [
+    "smoke: L1 单接口冒烟",
+    "flow: L2 业务流",
+    "integration: L3 集成/异常",
+]
+
+[tool.ruff]
+line-length = 120

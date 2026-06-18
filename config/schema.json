@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["tos_host", "tos_port", "username", "password"],
+  "properties": {
+    "tos_host": {"type": "string"},
+    "tos_port": {"type": "integer"},
+    "username": {"type": "string"},
+    "password": {"type": "string"},
+    "timeout": {"type": "integer", "default": 30},
+    "use_https": {"type": "boolean", "default": false}
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "pytest: smoke",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["-m", "smoke", "-v"],
+      "cwd": "${workspaceFolder}",
+      "env": {"CB_ENV": "local"}
+    },
+    {
+      "name": "pytest: flow",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["-m", "flow", "-v"],
+      "cwd": "${workspaceFolder}",
+      "env": {"CB_ENV": "local"}
+    },
+    {
+      "name": "pytest: integration",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["-m", "integration", "-v"],
+      "cwd": "${workspaceFolder}",
+      "env": {"CB_ENV": "local"}
+    },
+    {
+      "name": "pytest: current file",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "args": ["${file}", "-v"],
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
