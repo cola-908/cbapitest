@@ -84,9 +84,37 @@ class TOSHttpClient:
     # ── 认证 ──────────────────────────────────────
     def _login(self, username: str, password: str) -> None:
         """登录 TOS，获取 Cookie 和 CSRF Token"""
+        # Step 1: Get CSRF token and RSA public key
+        # Note: /v2/system/info may return 404 but still provides CSRF + RSA headers
+        info_resp = self.session.get(
+            f"{self.base_url}/v2/system/info",
+            timeout=self.timeout,
+        )
+        # Don't raise_for_status here - TOS may return 404 with valid headers
+
+        # Step 2: RSA encrypt the password
+        import base64
+        from Crypto.PublicKey import RSA
+        from Crypto.Cipher import PKCS1_v1_5
+
+        rsa_token = info_resp.headers.get("X-Rsa-Token", "")
+        if not rsa_token:
+            raise AuthenticationError("No RSA token from TOS")
+
+        rsa_key = RSA.import_key(base64.b64decode(rsa_token))
+        cipher = PKCS1_v1_5.new(rsa_key)
+        encrypted = cipher.encrypt(password.encode())
+        encrypted_b64 = base64.b64encode(encrypted).decode()
+
+        # Step 3: Login with encrypted password
+        # Extract CSRF token from cookies and set it in headers
+        csrf_token = self.session.cookies.get("X-Csrf-Token", "")
+        if csrf_token:
+            self.session.headers.update({"X-Csrf-Token": csrf_token})
+
         resp = self.session.post(
-            f"{self.base_url}/v2/user/login",
-            json={"username": username, "password": password},
+            f"{self.base_url}/v2/login",
+            json={"username": username, "password": encrypted_b64},
             timeout=self.timeout,
         )
         resp.raise_for_status()
@@ -95,12 +123,10 @@ class TOSHttpClient:
         if not body.get("code", False):
             raise AuthenticationError(f"Login failed: {body.get('msg', 'unknown')}")
 
-        # 从 Cookie 中提取 CSRF Token
-        self._csrf_token = self.session.cookies.get("X-Csrf-Token", "")
-        if not self._csrf_token:
-            # 部分版本需要额外请求获取
-            csrf_resp = self.session.get(f"{self.base_url}/v2/system/info", timeout=self.timeout)
-            self._csrf_token = csrf_resp.cookies.get("X-Csrf-Token", "")
+        # Update CSRF token from cookies after login
+        self._csrf_token = self.session.cookies.get("X-Csrf-Token", csrf_token)
+        if self._csrf_token:
+            self.session.headers.update({"X-Csrf-Token": self._csrf_token})
 
         self.session.headers.update({"X-Csrf-Token": self._csrf_token})
         logger.info(f"Logged in as {username}, CSRF={self._csrf_token[:8]}...")
@@ -112,7 +138,11 @@ class TOSHttpClient:
             if raw_path.startswith(prefix):
                 path = raw_path.replace(rule["strip"], "", 1)
                 return f"{self.base_url}{rule['prefix']}{path}"
-        # 非CB模块（如 /v2/*）直接拼接
+        # Paths not matching any module prefix route through CB proxy
+        # e.g. /overview -> /v2/proxy/CentralizedBackup/overview
+        if not raw_path.startswith("/v2/") and not raw_path.startswith("/CentralizedBackup"):
+            return f"{self.base_url}/v2/proxy/CentralizedBackup{raw_path}"
+        # Non-CB modules (like /v2/*) direct
         return f"{self.base_url}{raw_path}"
 
     # ── 核心请求方法 ──────────────────────────────

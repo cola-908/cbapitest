@@ -1,14 +1,28 @@
 """
-PC/Server (Win) API - 39个接口
+PC/Server (Win) API - 覆盖21个测试用例
 
-按业务实体分组:
-- 设备管理 (8)
-- 任务管理 (12)
-- 版本管理 (6)
-- 还原 (5)
-- Portal浏览 (5)
-- 概览 (1)
-- 其他 (2)
+代理路径前缀 /win → /v2/proxy/CentralizedBackup
+
+用例覆盖:
+- CB-001, CB-001b: 查询设备(desktop/server)
+- CB-002: 删除设备
+- CB-003, CB-003b: 查询任务(desktop/server)
+- CB-004: 导入备份数据
+- CB-005: 创建整台设备备份任务
+- CB-006: 执行备份
+- CB-007: 批量取消任务
+- CB-008: 删除任务
+- CB-009: 批量编辑任务
+- CB-017: Portal目录浏览
+- CB-018: 概览
+- CB-105: 编辑设备
+- CB-106: 获取卷信息
+- CB-107: 创建仅系统备份任务
+- CB-108: 创建自定义卷备份任务
+- CB-109: 获取任务版本
+- CB-110: 任务版本上锁
+- CB-111: 任务版本解锁
+- CB-112: 删除任务版本
 """
 
 from typing import Any, Optional
@@ -21,181 +35,215 @@ class WinAPI:
     def __init__(self, client: TOSHttpClient):
         self.client = client
 
-    # ── 设备管理 (8) ──────────────────────────────────
+    # ── 设备管理 ──────────────────────────────────────
     def list_devices(self, device_type: Optional[str] = None) -> APIResponse:
-        """GET /win/devices?type={desktop|server}"""
+        """GET /win/devices?type={desktop|server}
+        覆盖: CB-001, CB-001b
+        """
         params = {"type": device_type} if device_type else None
         return self.client.get("/win/devices", params=params)
 
     def get_device(self, device_id: str) -> APIResponse:
-        """GET /win/api/device/{device_id}"""
-        return self.client.get(f"/win/api/device/{device_id}")
-
-    def list_all_devices(self) -> APIResponse:
-        """GET /win/api/device"""
-        return self.client.get("/win/api/device")
+        """GET /win/devices?id={device_id}"""
+        return self.client.get("/win/devices", params={"id": device_id})
 
     def delete_device(self, device_id: str) -> APIResponse:
-        """DELETE /win/api/device/{device_id}"""
-        return self.client.delete(f"/win/api/device/{device_id}")
+        """DELETE /win/devices/{device_id}
+        覆盖: CB-002
+        """
+        return self.client.delete(f"/win/devices/{device_id}")
 
     def batch_delete_devices(self, device_ids: list[str]) -> APIResponse:
         """POST /win/batch/devices/delete"""
         return self.client.post("/win/batch/devices/delete", json={"ids": device_ids})
 
-    def get_device_volumes(self, device_id: str) -> APIResponse:
-        """GET /win/api/device/{device_id}/volume"""
-        return self.client.get(f"/win/api/device/{device_id}/volume")
+    def edit_device(self, device_id: str, data: dict) -> APIResponse:
+        """POST /win/devices/{device_id}
+        覆盖: CB-105
+        """
+        return self.client.post(f"/win/devices/{device_id}", json=data)
 
-    def upgrade_device(self, device_id: str) -> APIResponse:
-        """PUT /win/devices/{device_id}/upgrade"""
-        return self.client.put(f"/win/devices/{device_id}/upgrade")
+    def get_device_volumes(self, device_id: str) -> APIResponse:
+        """GET /win/devices/{device_id}/volumes
+        覆盖: CB-106
+        """
+        return self.client.get(f"/win/devices/{device_id}/volumes")
 
     def get_device_tasks_summary(self, device_id: str) -> APIResponse:
-        """GET /win/devices/{device_id}/task"""
-        return self.client.get(f"/win/devices/{device_id}/task")
+        """GET /win/devices/{device_id}/tasks"""
+        return self.client.get(f"/win/devices/{device_id}/tasks")
 
-    # ── 任务管理 (12) ─────────────────────────────────
+    def get_device_task_versions(self, device_id: str, task_id: str | int) -> APIResponse:
+        """GET /win/devices/{device_id}/tasks/{task_id}/version
+        覆盖: CB-006
+        """
+        return self.client.get(f"/win/devices/{device_id}/tasks/{task_id}/version")
+
+    def get_device_task_detail(self, device_id: str, task_id: str | int) -> APIResponse:
+        """GET /win/devices/{device_id}/tasks/{task_id}"""
+        return self.client.get(f"/win/devices/{device_id}/tasks/{task_id}")
+
+    # ── 任务管理 ──────────────────────────────────────
     def list_tasks(self, task_type: Optional[str] = None) -> APIResponse:
-        """GET /win/tasks?type={desktop|server}"""
+        """GET /win/tasks?type={desktop|server}
+        覆盖: CB-003, CB-003b
+        """
         params = {"type": task_type} if task_type else None
         return self.client.get("/win/tasks", params=params)
 
-    def get_task(self, task_id: int) -> APIResponse:
-        """GET /win/api/task/{task_id}"""
-        return self.client.get(f"/win/api/task/{task_id}")
+    def relink_task(self, data: Optional[dict] = None) -> APIResponse:
+        """POST /win/tasks/relink
+        覆盖: CB-004
+        """
+        return self.client.post("/win/tasks/relink", json=data)
 
-    def list_all_tasks(self) -> APIResponse:
-        """GET /win/api/task"""
-        return self.client.get("/win/api/task")
+    def relink_task_with_type(self, task_type: str) -> APIResponse:
+        """POST /win/tasks/relink?type={desktop|server}"""
+        return self.client.post("/win/tasks/relink", params={"type": task_type})
 
-    def exec_task(self, task_id: int) -> APIResponse:
-        """PUT /win/api/task/{task_id}/exec"""
-        return self.client.put(f"/win/api/task/{task_id}/exec")
+    # ── 创建备份任务（三个策略: 全设备/仅系统/自定义卷）──
+    def create_backup_task_full(self, device_id: str, data: dict) -> APIResponse:
+        """POST /win/devices/{device_id}/task  — 整台设备备份
+        覆盖: CB-005
+        """
+        return self.client.post(f"/win/devices/{device_id}/task", json=data)
 
-    def cancel_task(self, task_id: int) -> APIResponse:
-        """PUT /win/api/task/{task_id}/cancel"""
-        return self.client.put(f"/win/api/task/{task_id}/cancel")
+    def create_backup_task_system(self, device_id: str, data: dict) -> APIResponse:
+        """POST /win/devices/{device_id}/task  — 仅系统备份
+        覆盖: CB-107
+        """
+        return self.client.post(f"/win/devices/{device_id}/task", json=data)
 
-    def get_task_verbose(self, task_id: int) -> APIResponse:
-        """GET /win/api/task/{task_id}/verbose"""
-        return self.client.get(f"/win/api/task/{task_id}/verbose")
+    def create_backup_task_custom(self, device_id: str, data: dict) -> APIResponse:
+        """POST /win/devices/{device_id}/task  — 自定义卷备份
+        覆盖: CB-108
+        """
+        return self.client.post(f"/win/devices/{device_id}/task", json=data)
 
-    def edit_task(self, task_id: int, data: dict) -> APIResponse:
-        """PUT /win/devices/{device_id}/tasks/{task_id}"""
-        return self.client.put(f"/win/api/task/{task_id}", json=data)
+    # 通用创建方法（所有三个策略）
+    def create_backup_task(self, device_id: str, data: dict) -> APIResponse:
+        """POST /win/devices/{device_id}/task
+        覆盖: CB-005, CB-107, CB-108
+        """
+        return self.client.post(f"/win/devices/{device_id}/task", json=data)
 
-    def relink_task(self, task_type: str) -> APIResponse:
-        """GET /win/tasks/relink?type={desktop|server}"""
-        return self.client.get("/win/tasks/relink", params={"type": task_type})
-
-    def batch_add_tasks(self, tasks: list[dict]) -> APIResponse:
-        """POST /win/batch/tasks/add"""
-        return self.client.post("/win/batch/tasks/add", json={"tasks": tasks})
-
-    def batch_exec_tasks(self, task_ids: list[int]) -> APIResponse:
-        """POST /win/batch/tasks/exec"""
-        return self.client.post("/win/batch/tasks/exec", json={"ids": task_ids})
-
-    def batch_cancel_tasks(self, task_ids: list[int]) -> APIResponse:
-        """POST /win/batch/tasks/cancel"""
-        return self.client.post("/win/batch/tasks/cancel", json={"ids": task_ids})
-
-    def batch_delete_tasks(self, task_ids: list[int]) -> APIResponse:
-        """POST /win/batch/tasks/delete"""
-        return self.client.post("/win/batch/tasks/delete", json={"ids": task_ids})
-
-    def batch_edit_tasks(self, edits: list[dict]) -> APIResponse:
-        """POST /win/batch/tasks/edit"""
-        return self.client.post("/win/batch/tasks/edit", json={"edits": edits})
-
-    # ── 版本管理 (6) ──────────────────────────────────
-    def list_versions(self, device_id: str, task_id: int) -> APIResponse:
-        """GET /win/devices/{device_id}/tasks/{task_id}/versions"""
+    # ── 版本管理 ──────────────────────────────────────
+    def list_versions(self, device_id: str, task_id: str | int) -> APIResponse:
+        """GET /win/devices/{device_id}/tasks/{task_id}/versions
+        覆盖: CB-109
+        """
         return self.client.get(f"/win/devices/{device_id}/tasks/{task_id}/versions")
 
-    def get_version(self, device_id: str, task_id: int, ver_id: str) -> APIResponse:
-        """GET /win/devices/{device_id}/tasks/{task_id}/versions/{ver_id}"""
-        return self.client.get(f"/win/devices/{device_id}/tasks/{task_id}/versions/{ver_id}")
-
-    def get_version_guide(self, device_id: str, task_id: int) -> APIResponse:
-        """GET /win/devices/{device_id}/tasks/{task_id}/guide"""
-        return self.client.get(f"/win/devices/{device_id}/tasks/{task_id}/guide")
-
-    def get_version_detail(self, device_id: str, task_id: int, ver_id: str) -> APIResponse:
-        """GET /win/devices/{device_id}/tasks/{task_id}/version/{ver_id}"""
-        return self.client.get(f"/win/devices/{device_id}/tasks/{task_id}/version/{ver_id}")
-
-    def lock_version(self, ver_id: str, locked: bool) -> APIResponse:
-        """PUT version lock"""
-        return self.client.put(f"/win/devices/0/tasks/0/versions/{ver_id}", json={"locked": locked})
-
-    def get_disk_partitions(
-        self, device_id: str, task_id: int, ver_id: str, disk_id: str, part_id: str
+    def lock_task_version(
+        self, device_id: str, task_id: str | int, version_id: str, data: Optional[dict] = None
     ) -> APIResponse:
-        """GET 最深层 /versions/{ver_id}/disks/{disk_id}/partitions/{part_id}"""
-        return self.client.get(
-            f"/win/devices/{device_id}/tasks/{task_id}/versions/{ver_id}/disks/{disk_id}/partitions/{part_id}"
+        """POST /win/devices/{device_id}/tasks/{task_id}/versions/{version_id}
+        覆盖: CB-110
+        """
+        return self.client.post(
+            f"/win/devices/{device_id}/tasks/{task_id}/versions/{version_id}", json=data
         )
 
-    # ── 还原 (5) ──────────────────────────────────────
-    def list_restore_tasks(self) -> APIResponse:
-        """GET /win/api/portal/get_res_task"""
-        return self.client.get("/win/api/portal/get_res_task")
+    def unlock_task_version(
+        self, device_id: str, task_id: str | int, version_id: str, data: Optional[dict] = None
+    ) -> APIResponse:
+        """POST /win/devices/{device_id}/tasks/{task_id}/versions/{version_id}
+        覆盖: CB-111
+        """
+        return self.client.post(
+            f"/win/devices/{device_id}/tasks/{task_id}/versions/{version_id}", json=data
+        )
 
-    def create_restore_task(self, data: dict) -> APIResponse:
-        """POST /win/api/portal/create_res_task"""
-        return self.client.post("/win/api/portal/create_res_task", json=data)
+    def delete_task_version(
+        self, device_id: str, task_id: str | int, version_id: str, data: Optional[dict] = None
+    ) -> APIResponse:
+        """DELETE /win/devices/{device_id}/tasks/{task_id}/versions/{version_id}
+        覆盖: CB-112
+        """
+        return self.client.delete(
+            f"/win/devices/{device_id}/tasks/{task_id}/versions/{version_id}", json=data
+        )
 
-    def cancel_restore(self, res_id: int) -> APIResponse:
-        """GET /win/api/portal/cancel_res?id={res_id}"""
-        return self.client.get("/win/api/portal/cancel_res", params={"id": res_id})
+    # ── 任务删除 ──────────────────────────────────────
+    def delete_task(self, device_id: str, task_id: str | int) -> APIResponse:
+        """DELETE /win/devices/{device_id}/tasks/{task_id}
+        覆盖: CB-008
+        """
+        return self.client.delete(f"/win/devices/{device_id}/tasks/{task_id}")
 
-    def delete_restore(self, res_id: int) -> APIResponse:
-        """GET /win/api/portal/delete_res?id={res_id}"""
-        return self.client.get("/win/api/portal/delete_res", params={"id": res_id})
+    # ── 批量操作 ──────────────────────────────────────
+    def batch_exec_task(self, device_id: str, task_id: str | int, data: Optional[dict] = None) -> APIResponse:
+        """POST /win/devices/{device_id}/tasks/{task_id}/version
+        覆盖: CB-006
+        """
+        return self.client.post(
+            f"/win/devices/{device_id}/tasks/{task_id}/version", json=data
+        )
 
-    def restore(self, data: dict) -> APIResponse:
-        """POST /win/api/portal/restore"""
-        return self.client.post("/win/api/portal/restore", json=data)
+    def batch_cancel_tasks(self, data: dict) -> APIResponse:
+        """POST /win/batch/tasks/cancel
+        覆盖: CB-007
+        """
+        return self.client.post("/win/batch/tasks/cancel", json=data)
 
-    # ── Portal浏览 (5) ───────────────────────────────
+    def batch_delete_tasks(self, data: dict) -> APIResponse:
+        """DELETE /win/batch/tasks/delete (通过 POST 模拟)
+        注意: 根据用例 delete 转发为 POST /batch/tasks/delete
+        """
+        return self.client.post("/win/batch/tasks/delete", json=data)
+
+    def batch_edit_task(self, device_id: str, task_id: str | int, data: dict) -> APIResponse:
+        """POST /win/devices/{device_id}/tasks/{task_id}
+        覆盖: CB-009
+        """
+        return self.client.post(f"/win/devices/{device_id}/tasks/{task_id}", json=data)
+
+    def batch_add_tasks(self, data: dict) -> APIResponse:
+        """POST /win/batch/tasks/add"""
+        return self.client.post("/win/batch/tasks/add", json=data)
+
+    def batch_exec_tasks(self, data: dict) -> APIResponse:
+        """POST /win/batch/tasks/exec"""
+        return self.client.post("/win/batch/tasks/exec", json=data)
+
+    def batch_edit_tasks(self, data: dict) -> APIResponse:
+        """POST /win/batch/tasks/edit"""
+        return self.client.post("/win/batch/tasks/edit", json=data)
+
+    # ── Portal 浏览 ──────────────────────────────────
+    def portal_dir(self, path: Optional[str] = None) -> APIResponse:
+        """GET /win/portal/dir
+        覆盖: CB-017
+        """
+        params = {"path": path} if path else None
+        return self.client.get("/win/portal/dir", params=params)
+
     def browse_image(self, file_id: str, sub_path: str = "") -> APIResponse:
-        """GET /win/api/portal/browse_image?file_id={}&sub_path={}"""
+        """GET /win/portal/browse_image"""
         return self.client.get(
-            "/win/api/portal/browse_image",
+            "/win/portal/browse_image",
             params={"file_id": file_id, "sub_path": sub_path},
         )
 
     def get_dev_dir_sub_dirs(self, device_uuid: str, path: str = "/") -> APIResponse:
-        """GET /win/api/portal/get_dev_dir_sub_dirs?device_uuid={}&path={}"""
+        """GET /win/portal/get_dev_dir_sub_dirs"""
         return self.client.get(
-            "/win/api/portal/get_dev_dir_sub_dirs",
+            "/win/portal/get_dev_dir_sub_dirs",
             params={"device_uuid": device_uuid, "path": path},
         )
 
-    def portal_dir(self, path: str = "/") -> APIResponse:
-        """GET /win/portal/dir"""
-        return self.client.get("/win/portal/dir", params={"path": path})
-
-    def download_pc_client(self) -> APIResponse:
-        """GET /pc/windows"""
-        return self.client.get("/pc/windows")
-
-    def download_server_client(self) -> APIResponse:
-        """GET /server/windows"""
-        return self.client.get("/server/windows")
-
-    # ── 概览 (1) ──────────────────────────────────────
+    # ── 概览 ──────────────────────────────────────────
     def overview(self) -> APIResponse:
-        """GET /win/overview"""
+        """GET /win/overview
+        覆盖: CB-018
+        """
         return self.client.get("/win/overview")
 
-    # ── 其他 (2) ──────────────────────────────────────
-    def get_task_detail(self, device_id: str, task_id: int) -> APIResponse:
-        """GET /win/devices/{device_id}/tasks/{task_id}"""
-        return self.client.get(f"/win/devices/{device_id}/tasks/{task_id}")
+    # ── 客户端下载 ────────────────────────────────────
+    def download_pc_client(self) -> APIResponse:
+        """GET /win/pc/windows"""
+        return self.client.get("/win/pc/windows")
 
-    def get_device_task_versions(self, device_id: str, task_id: int) -> APIResponse:
-        """GET /win/devices/{device_id}/tasks/{task_id}/version"""
-        return self.client.get(f"/win/devices/{device_id}/tasks/{task_id}/version")
+    def download_server_client(self) -> APIResponse:
+        """GET /win/server/windows"""
+        return self.client.get("/win/server/windows")
